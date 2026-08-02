@@ -1,20 +1,46 @@
 import { createStart, createMiddleware } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+
+// Distinguish full-document (SSR page) requests from server-fn/API RPCs.
+// Server-fn/API errors must be rethrown so the caller receives the real
+// status/message (e.g. an AuthError 401 toast) instead of an HTML error page.
+function isDocumentRequest(): boolean {
+  try {
+    const request = getRequest();
+    if (!request) return true;
+    const accept = request.headers.get("accept") ?? "";
+    return accept.includes("text/html");
+  } catch {
+    return true;
+  }
+}
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
-    if (error != null && typeof error === "object" && "statusCode" in error) {
+    // Already-HTTP-shaped errors (AuthError, redirects, etc.) pass through so
+    // the caller receives the real status code.
+    if (
+      error != null &&
+      typeof error === "object" &&
+      ("statusCode" in error || "status" in error)
+    ) {
       throw error;
     }
     console.error(error);
-    return new Response(renderErrorPage(), {
-      status: 500,
-      headers: { "content-type": "text/html; charset=utf-8" },
-    });
+    // Only render the HTML fallback for full-document requests; everything
+    // else rethrows so the client can surface a precise error message.
+    if (isDocumentRequest()) {
+      return new Response(renderErrorPage(), {
+        status: 500,
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    }
+    throw error;
   }
 });
 
@@ -22,3 +48,4 @@ export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
   requestMiddleware: [errorMiddleware],
 }));
+

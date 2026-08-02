@@ -1,18 +1,27 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { login, loginWithGoogle } from "@/lib/mock/auth";
+import { login, loginWithGoogle } from "@/lib/auth";
 
 export const Route = createFileRoute("/_auth/login")({
-  head: () => ({ meta: [{ title: "Sign in — Medicare Connect" }, { name: "description", content: "Sign in to your Medicare Connect workspace." }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    redirect: (s.redirect as string | undefined) || undefined,
+  }),
+  head: () => ({
+    meta: [
+      { title: "Sign in — Medicare Connect" },
+      { name: "description", content: "Sign in to your Medicare Connect workspace." },
+    ],
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { redirect } = useSearch({ from: "/_auth/login" });
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
@@ -23,7 +32,7 @@ function LoginPage() {
     try {
       await login(String(data.email), String(data.password));
       toast.success("Welcome back");
-      navigate({ to: "/overview" });
+      navigate({ to: redirect || "/overview" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign in failed");
     } finally {
@@ -35,6 +44,10 @@ function LoginPage() {
     setGoogleLoading(true);
     try {
       await loginWithGoogle();
+      // Google OAuth redirects away from this page — the navigation
+      // happens on the server. If we get here, it means the redirect
+      // didn't happen (e.g. popup mode), so we show an error.
+      setGoogleLoading(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
       setGoogleLoading(false);
@@ -45,25 +58,48 @@ function LoginPage() {
     <>
       <h1 className="text-2xl font-bold">Sign in</h1>
       <p className="mt-1 text-sm text-muted-foreground">Welcome back to Medicare Connect.</p>
-      <Button type="button" variant="outline" className="mt-6 w-full" onClick={onGoogle} disabled={googleLoading}>
+      <Button
+        type="button"
+        variant="outline"
+        className="mt-6 w-full"
+        onClick={onGoogle}
+        disabled={googleLoading}
+      >
         {googleLoading ? "Redirecting…" : "Continue with Google"}
       </Button>
       <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
-        <div className="h-px flex-1 bg-border" /> or with email <div className="h-px flex-1 bg-border" />
+        <div className="h-px flex-1 bg-border" /> or with email{" "}
+        <div className="h-px flex-1 bg-border" />
       </div>
       <form onSubmit={onSubmit} className="space-y-4">
-        <div><Label htmlFor="email">Email</Label><Input id="email" name="email" type="email" required autoComplete="email" /></div>
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" name="email" type="email" required autoComplete="email" />
+        </div>
         <div>
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Password</Label>
-            <Link to="/forgot-password" className="text-xs text-primary hover:underline">Forgot?</Link>
+            <Link to="/forgot-password" className="text-xs text-primary hover:underline">
+              Forgot?
+            </Link>
           </div>
-          <Input id="password" name="password" type="password" autoComplete="current-password" required />
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+          />
         </div>
-        <Button type="submit" className="w-full" disabled={loading}>{loading ? "Signing in…" : "Sign in"}</Button>
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? "Signing in…" : "Sign in"}
+        </Button>
       </form>
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        No account? <Link to="/register" className="text-primary hover:underline">Register</Link>
+        No account?{" "}
+        <Link to="/register" className="text-primary hover:underline">
+          Register
+        </Link>
       </p>
     </>
   );

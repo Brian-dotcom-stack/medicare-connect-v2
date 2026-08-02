@@ -117,37 +117,22 @@ function RootComponent() {
 
   useEffect(() => {
     let mounted = true;
+    let unsubscribe: (() => void) | undefined;
+
     void (async () => {
       const { supabase } = await import("@/integrations/supabase/client");
-      const { writeCachedUser } = await import("@/lib/mock/auth");
-      const { data } = await supabase.auth.getSession();
-      if (mounted && data.session?.user) {
-        const u = data.session.user;
-        writeCachedUser({
-          id: u.id,
-          email: u.email ?? "",
-          name: (u.user_metadata?.name as string) ?? (u.email?.split("@")[0] ?? "User"),
-          emailVerified: !!u.email_confirmed_at,
-        });
-      }
-      supabase.auth.onAuthStateChange((event, session) => {
-        if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-        if (session?.user) {
-          const u = session.user;
-          writeCachedUser({
-            id: u.id,
-            email: u.email ?? "",
-            name: (u.user_metadata?.name as string) ?? (u.email?.split("@")[0] ?? "User"),
-            emailVerified: !!u.email_confirmed_at,
-          });
-        } else {
-          writeCachedUser(null);
-        }
-        router.invalidate();
+      // Session persistence is fully managed by supabase-js (localStorage +
+      // auto-refresh). We only invalidate the router when auth state changes so
+      // protected routes re-evaluate their guards.
+      const { data: sub } = supabase.auth.onAuthStateChange(() => {
+        if (mounted) router.invalidate();
       });
+      unsubscribe = () => sub.subscription.unsubscribe();
     })();
+
     return () => {
       mounted = false;
+      unsubscribe?.();
     };
   }, [router]);
 

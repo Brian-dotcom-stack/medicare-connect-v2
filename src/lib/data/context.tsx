@@ -16,6 +16,7 @@ interface OrgCtxValue {
   activeOrg: (Organisation & { role: Role }) | null;
   setActiveOrgId: (id: string) => void;
   refresh: () => Promise<void>;
+  isLoading: boolean;
 }
 
 const OrgCtx = createContext<OrgCtxValue | null>(null);
@@ -53,7 +54,7 @@ export function OrgProvider({
     return localStorage.getItem(ORG_KEY);
   });
 
-  const { data: orgs = [], refetch } = useQuery({
+  const { data: orgs = [], refetch, isLoading } = useQuery({
     queryKey: ["memberships", session.userId],
     queryFn: () => fetchOrgs(session.userId),
   });
@@ -87,6 +88,7 @@ export function OrgProvider({
     refresh: async () => {
       await refetch();
     },
+    isLoading,
   };
 
   return <OrgCtx.Provider value={value}>{children}</OrgCtx.Provider>;

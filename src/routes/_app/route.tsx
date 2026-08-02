@@ -10,7 +10,11 @@ export const Route = createFileRoute("/_app")({
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
     if (!data.session) {
-      throw redirect({ to: "/login", search: { redirect: location.href } as never });
+      // Keep the redirect target on the same origin only (no open redirect).
+      const target = location.href.startsWith(window.location.origin)
+        ? location.href
+        : "/overview";
+      throw redirect({ to: "/login", search: { redirect: target } });
     }
   },
   component: AppLayout,
@@ -56,18 +60,27 @@ function AppLayout() {
 }
 
 function OrgGate() {
-  const { orgs, activeOrg } = useOrg();
+  const { orgs, activeOrg, isLoading } = useOrg();
   const navigate = useNavigate();
   const path = typeof window !== "undefined" ? window.location.pathname : "";
 
   useEffect(() => {
-    if (orgs.length === 0 && path !== "/onboarding") {
+    if (!isLoading && orgs.length === 0 && path !== "/onboarding") {
       navigate({ to: "/onboarding" });
     }
-  }, [orgs.length, path, navigate]);
+  }, [orgs.length, isLoading, path, navigate]);
 
-  if (orgs.length === 0 || !activeOrg) {
-    return <Outlet />;
+  // While memberships are loading, show a placeholder instead of rendering the
+  // Outlet (which would crash on `activeOrg!.id`).
+  if (isLoading || orgs.length === 0 || !activeOrg) {
+    if (orgs.length === 0 && path === "/onboarding") {
+      return <Outlet />;
+    }
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/30">
+        <div className="text-sm text-muted-foreground">Loading workspace…</div>
+      </div>
+    );
   }
 
   return (
@@ -76,3 +89,4 @@ function OrgGate() {
     </AppShell>
   );
 }
+

@@ -1,3 +1,10 @@
+// Force Nitro/Vercel to bundle tslib into the server output. Without this,
+// the serverless bundle throws "Cannot find package 'tslib' imported from
+// /var/task/_libs/supabase__functions-js.mjs" at runtime because Nitro
+// externalises `tslib` (an importHelper) but the deployed runtime does not
+// include it as a node_module.
+import "@/integrations/supabase/tslib-shim";
+
 import { createStart, createMiddleware } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 

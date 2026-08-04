@@ -1,7 +1,7 @@
   {
     "name": "tanstack_start_ts",
     "private": true,
-    "sideEffects": false,
+"sideEffects": ["src/integrations/supabase/tslib-shim.ts"],
     "type": "module",
     "scripts": {
       "dev": "vite dev",
